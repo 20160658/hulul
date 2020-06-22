@@ -19,34 +19,19 @@ import androidmads.library.qrgenearator.QRGEncoder;
 
 import com.google.zxing.WriterException;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.concurrent.ExecutionException;
-
 public class WifiQrActivity extends Activity
 {
-    //a WebView object to display a web page
-    private WebView webView;
-    //The button to launch the WebView dialog
-    private Button btLaunchWVD;
-    //The button that closes the dialog
-    private Button btClose;
-    private Dialog webViewDialog;
+    private Dialog wifiQrDialog;
     private String ssid;
     private String psk;
     private String cap;
 
     String TAG = "GenerateQRCode";
     ImageView qrImage;
-    Button start, save;
     String inputValue;
     Bitmap bitmap;
     QRGEncoder qrgEncoder;
-    /** Called when the activity is first created. */
+
     @Override
     public void onCreate(Bundle savedInstanceState)
     {
@@ -61,28 +46,28 @@ public class WifiQrActivity extends Activity
         System.out.println("capab "+ cap);
 
         //Create a new dialog
-        webViewDialog = new Dialog(WifiQrActivity.this);
+        wifiQrDialog = new Dialog(WifiQrActivity.this);
         //Remove the dialog's title
-        webViewDialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        wifiQrDialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         //Inflate the contents of this dialog with the Views defined at 'webviewdialog.xml'
-        webViewDialog.setContentView(R.layout.activity_wifiqr);
+        wifiQrDialog.setContentView(R.layout.activity_wifiqr);
         //With this line, the dialog can be dismissed by pressing the back key
-        webViewDialog.setCancelable(true);
+        wifiQrDialog.setCancelable(true);
 
-        webViewDialog.show();
+        wifiQrDialog.show();
 
         //Initialize the Button object with the data from the 'webviewdialog.xml' file
-        Button btClose = (Button) webViewDialog.findViewById(R.id.bt_close);
+        Button btClose = (Button) wifiQrDialog.findViewById(R.id.bt_close);
         //Define what should happen when the close button is pressed.
         btClose.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 //Dismiss the dialog
-                webViewDialog.dismiss();
+                wifiQrDialog.dismiss();
                 finish();
             }
         });
-        qrImage = (ImageView) webViewDialog.findViewById(R.id.imageView);
+        qrImage = (ImageView) wifiQrDialog.findViewById(R.id.imageView);
         String capab = "FAIL";
         if(cap.equals("OPEN"))
             capab = "nopass";
@@ -110,8 +95,6 @@ public class WifiQrActivity extends Activity
             } catch (WriterException e) {
                 Log.v(TAG, e.toString());
             }
-        } else {
-
         }
     }
 }

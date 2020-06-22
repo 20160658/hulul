@@ -164,7 +164,6 @@ public class WifiDialog extends AlertDialog implements View.OnClickListener {
 
             for(HashMap<String, String> res : resultList) {
                 for(String o: res.keySet()) {
-                    System.out.println("res.get(o) : " + res.get(o));
                     if (res.get(o).equals(bssid)) {
                         new DatabaseTask().execute(Integer.toString(DatabaseTask.UPDATE), bssid, mEtPasswd.getText().toString());
                         return true;

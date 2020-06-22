@@ -136,7 +136,6 @@ public class MainActivity extends AppCompatActivity {
                 qrIntent.putExtra("SSID", currentWifi.getSSID());
                 qrIntent.putExtra("PSK", getCurrentWifiPsk(currentWifi.getBSSID()));
                 qrIntent.putExtra("CAPAB", getCurrentWifiCap(currentWifi.getBSSID()));
-                System.out.println("현재 BSSID " + currentWifi.getBSSID() + " PSK " + getCurrentWifiPsk(currentWifi.getBSSID()) + " CAP " + getCurrentWifiCap(currentWifi.getBSSID()));
                 startActivityForResult(qrIntent, 202);
             }
         });
@@ -164,13 +163,10 @@ public class MainActivity extends AppCompatActivity {
         WifiManager manager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
         WifiInfo currentWifi = manager.getConnectionInfo();
         if(haveNetworkConnection()) {
-            if (isRegisteredWifi(currentWifi.getBSSID(), false)) {
+            if (isRegisteredWifi(currentWifi.getBSSID(), false))
                 btn.setEnabled(true);
-                System.out.println("연결됐습니다." + isRegisteredWifi(currentWifi.getBSSID(), false));
-            } else {
+            else
                 btn.setEnabled(false);
-                System.out.println("비연결됐습니다." + isRegisteredWifi(currentWifi.getBSSID(), false));
-            }
         }
     }
 
@@ -407,7 +403,6 @@ public class MainActivity extends AppCompatActivity {
         ArrayList<HashMap<String, String>> resultList = getWifiData();
         for (HashMap<String, String> res : resultList) {
             for (String o : res.keySet()) {
-                System.out.println("res.get(o) : " + res.get(o));
                 if (res.get(o).equals(bsid)) {
                     if(isAlready)
                         new DatabaseTask().execute(Integer.toString(DatabaseTask.UPDATE), bsid, "");
