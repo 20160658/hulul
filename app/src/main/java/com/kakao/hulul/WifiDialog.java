@@ -29,12 +29,14 @@ public class WifiDialog extends AlertDialog implements View.OnClickListener {
     private Context mContext;
     private String cap;
     private String ssid;
+    private String bssid;
 
-    public WifiDialog(Context context, String cap, String ssid) {
+    public WifiDialog(Context context, String cap, String ssid, String bssid) {
         super(context, R.style.Theme_AppCompat_Light_Dialog);
         mContext = context;
         this.cap = cap;
         this.ssid = ssid;
+        this.bssid = bssid;
     }
 
     @Override
@@ -64,7 +66,7 @@ public class WifiDialog extends AlertDialog implements View.OnClickListener {
                 } else {
                     boolean isRegistered = isAlreadyRegisteredWifi();
                     if(!isRegistered)
-                        new DatabaseTask().execute(Integer.toString(DatabaseTask.SET), ssid, mEtPasswd.getText().toString());
+                        new DatabaseTask().execute(Integer.toString(DatabaseTask.SET), bssid, mEtPasswd.getText().toString());
                     connectWifi(cap, ssid, mEtPasswd.getText().toString());
                     this.dismiss();
                 }
@@ -78,10 +80,10 @@ public class WifiDialog extends AlertDialog implements View.OnClickListener {
     public void connectWifi(String cap, String ssid, String passkey) {
         WifiConfiguration wifiConfiguration = new WifiConfiguration();
         WifiManager wifiManager = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
-        List<ScanResult> scanResultList = wifiManager.getScanResults();
-
         String networkSSID = ssid;
         String networkPass = passkey;
+
+        List<ScanResult> scanResultList = wifiManager.getScanResults();
 
         for (ScanResult result : scanResultList) {
             if (result.SSID.equals(networkSSID)) {
@@ -138,18 +140,18 @@ public class WifiDialog extends AlertDialog implements View.OnClickListener {
             System.out.println("aaa" + a);
             JSONObject jsonObj = new JSONObject(a);
             JSONArray results = jsonObj.getJSONArray(TAG_RESULTS);
-            String bssid = null;
+            String bsid = null;
             String psk = null;
 
             for (int i = 0; i < results.length(); i++) {
                 JSONObject c = results.getJSONObject(i);
-                bssid = c.getString(TAG_BSSID);
+                bsid = c.getString(TAG_BSSID);
                 String session = c.getString(TAG_SESSION);
                 psk = c.getString(TAG_PSK);
 
                 HashMap<String, String> resultMap = new HashMap<String, String>();
 
-                resultMap.put(TAG_BSSID, bssid);
+                resultMap.put(TAG_BSSID, bsid);
                 resultMap.put(TAG_SESSION, session);
                 resultMap.put(TAG_PSK, psk);
 
@@ -159,8 +161,8 @@ public class WifiDialog extends AlertDialog implements View.OnClickListener {
             for(HashMap<String, String> res : resultList) {
                 for(String o: res.keySet()) {
                     System.out.println("res.get(o) : " + res.get(o));
-                    if (res.get(o).equals(ssid)) {
-                        new DatabaseTask().execute(Integer.toString(DatabaseTask.UPDATE), ssid, mEtPasswd.getText().toString());
+                    if (res.get(o).equals(bssid)) {
+                        new DatabaseTask().execute(Integer.toString(DatabaseTask.UPDATE), bssid, mEtPasswd.getText().toString());
                         return true;
                     }
                 }

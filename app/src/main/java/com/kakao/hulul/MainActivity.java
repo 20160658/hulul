@@ -29,26 +29,25 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import android.net.wifi.WifiConfiguration.KeyMgmt;
 
 import com.kakao.auth.Session;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_CODE_ASK_MULTIPLE_PERMISSIONS = 0;
     private boolean isFocused = true;
     private WifiManager wifiManager;
     private WifiDialog mDialog;
-    private List<ScanResult> scanDatas; // ScanResult List
+    private List<ScanResult> scanDatas;
 
     private List<WifiData> wifiList;
     private ListView listView;
@@ -71,7 +70,7 @@ public class MainActivity extends AppCompatActivity {
 
                 wifiList = new ArrayList<>();
                 for(ScanResult select : scanDatas){
-                    String BBSID = select.BSSID;
+                    String BBSID = select.BSSID + " 강도 " + WifiManager.calculateSignalLevel(select.level, 5) + " 보안 " + getScanResultSecurity(select);
                     String SSID = select.SSID;
                     String CAP = select.capabilities;
                     if(select.SSID.equals(""))
@@ -82,41 +81,32 @@ public class MainActivity extends AppCompatActivity {
                 if(scanDatas.size() == 0)
                     Toast.makeText(context, "주변 와이파이를 감지할 수 없습니다.", Toast.LENGTH_SHORT).show();
 
-                // 어댑터뷰(리스트 뷰)
                 listView = (ListView)findViewById(R.id.listView);
-                // 어댑터
-                ArrayAdapter adapter = new WifiAdapter(getApplicationContext(), R.layout.item_layout, wifiList); // 안드로이드에서 기본적으로 제공되는 레이아웃
+                ArrayAdapter adapter = new WifiAdapter(getApplicationContext(), R.layout.item_layout, wifiList);
                 listView.setAdapter(adapter);
                 final ListView listView = (ListView) findViewById(R.id.listView);
                 listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                     @Override
                     public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
-                        //Toast.makeText(getApplicationContext(), wifiList.get(i).getSSID(), Toast.LENGTH_SHORT).show();
-                        //if(wifiList.get(i).getSSID().equals("2018170056")) {
-                        //    Toast.makeText(getApplicationContext(), "123321aaa", Toast.LENGTH_SHORT).show();
-                        //}
-                        //scanDatas.contains()
-                        //Intent intent = new Intent(
-                        //        Settings.ACTION_WIFI_SETTINGS);
-                        //intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        //startActivityForResult(intent, 0);
                         String result = getScanResultSecurity(wifiList.get(i).getResult());
+                        String splitBssid = wifiList.get(i).getBSSID().substring(0, 17);
                         if(result.equalsIgnoreCase("PSK") || result.equalsIgnoreCase("EAP") || result.equalsIgnoreCase("WEP")) {
-                            mDialog = new WifiDialog(MainActivity.this, result, wifiList.get(i).getSSID());
+                            mDialog = new WifiDialog(MainActivity.this, result, wifiList.get(i).getSSID(), splitBssid);
                             mDialog.show();
                             //unRegisterWifiReceivers();
                         } else if(result.equalsIgnoreCase("OPEN")) {
                             OPEN(wifiManager, wifiList.get(i).getSSID());
-                            insertWifi(wifiList.get(i).getSSID(), Session.getCurrentSession().toString(), "");
+                            boolean isRegistered = isAlreadyRegisteredWifi(splitBssid);
+                            if(!isRegistered)
+                                new DatabaseTask().execute(Integer.toString(DatabaseTask.SET), splitBssid, "");
                             Toast.makeText(MainActivity.this, "연결되었습니다.", Toast.LENGTH_LONG).show();
                         }
                     }
                 });
-                // listview 갱신
                 adapter.notifyDataSetChanged();
                 bar.setVisibility(View.INVISIBLE);
 
-            }else if(action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
+            } else if(action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
                 getConnectedWifi();
                 sendBroadcast(new Intent("wifi.ON_NETWORK_STATE_CHANGED"));
             }
@@ -277,7 +267,6 @@ public class MainActivity extends AppCompatActivity {
             inteent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
             startActivity(inteent);
             finish();
-            //do something...
         }
     }
 
@@ -301,12 +290,10 @@ public class MainActivity extends AppCompatActivity {
                 return securityModes[i];
             }
         }
-
         return "OPEN";
     }
 
     public class DisconnectWifi extends BroadcastReceiver  {
-
         @Override
         public void onReceive(Context c, Intent intent) {
             if(!intent.getParcelableExtra(wifiManager.EXTRA_NEW_STATE).toString().equals(SupplicantState.SCANNING)) wifiManager.disconnect();
@@ -348,47 +335,52 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public String insertData(String urlString, final String bssid, final String session,final String psk) {
+    public boolean isAlreadyRegisteredWifi(String ssid) {
         try {
-            URL url = new URL(urlString);
-            String postData = "bssid=" + bssid + "&" + "session=" + session + "&" + "psk=" + psk;
-            HttpURLConnection conn = (HttpURLConnection)url.openConnection();
-            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-            conn.setRequestMethod("POST");
-            conn.setConnectTimeout(5000);
-            conn.setDoOutput(true);
-            conn.setDoInput(true);
-            OutputStream outputStream = conn.getOutputStream();
-            outputStream.write(postData.getBytes("UTF-8"));
-            outputStream.flush();
-            outputStream.close();
-            String result = readStream(conn.getInputStream());
-            conn.disconnect();
-            return result;
-        }
-        catch (Exception e) {
-            Log.i("PHPRequest", "request was failed.");
-            return null;
-        }
-    }
+            ArrayList<HashMap<String, String>> resultList = new ArrayList<HashMap<String, String>>();
+            String TAG_RESULTS = "result";
+            String TAG_BSSID = "bssid";
+            String TAG_SESSION = "session";
+            String TAG_PSK = "psk";
+            String a = new DatabaseTask().execute(Integer.toString(DatabaseTask.GET)).get();
+            System.out.println("aaa" + a);
+            JSONObject jsonObj = new JSONObject(a);
+            JSONArray results = jsonObj.getJSONArray(TAG_RESULTS);
+            String bssid = null;
+            String psk = null;
 
-    private String readStream(InputStream is) throws IOException {
-        StringBuilder sb = new StringBuilder();
-        BufferedReader r = new BufferedReader(new InputStreamReader(is),1000);
-        for (String line = r.readLine(); line != null; line =r.readLine()){
-            sb.append(line);
-        }
-        is.close();
-        return sb.toString();
-    }
+            for (int i = 0; i < results.length(); i++) {
+                JSONObject c = results.getJSONObject(i);
+                bssid = c.getString(TAG_BSSID);
+                String session = c.getString(TAG_SESSION);
+                psk = c.getString(TAG_PSK);
 
-    public void insertWifi(String bssid, String session, String psk) {
-        String result = insertData("http://hulu.dothome.co.kr/set.php", bssid, session, psk);
-        if (result.equals("1")) {
-            Toast.makeText(getApplication(), "들어감", Toast.LENGTH_SHORT).show();
-        } else {
-            Toast.makeText(getApplication(), "안 들어감", Toast.LENGTH_SHORT).show();
-        }
-    }
+                HashMap<String, String> resultMap = new HashMap<String, String>();
 
+                resultMap.put(TAG_BSSID, bssid);
+                resultMap.put(TAG_SESSION, session);
+                resultMap.put(TAG_PSK, psk);
+
+                resultList.add(resultMap);
+            }
+
+            for(HashMap<String, String> res : resultList) {
+                for(String o: res.keySet()) {
+                    System.out.println("res.get(o) : " + res.get(o));
+                    if (res.get(o).equals(ssid)) {
+                        new DatabaseTask().execute(Integer.toString(DatabaseTask.UPDATE), ssid, "");
+                        return true;
+                    }
+                }
+            }
+
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
 }
