@@ -1,8 +1,15 @@
 package com.kakao.hulul;
 
 import android.app.Application;
+import android.app.Service;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Typeface;
+import android.os.IBinder;
+import android.util.Log;
+import android.widget.Toast;
+
+import androidx.annotation.Nullable;
 
 import com.kakao.auth.ApprovalType;
 import com.kakao.auth.AuthType;
@@ -36,6 +43,8 @@ public class GlobalApplication extends Application {
     @Override
     public void onTerminate() {
         super.onTerminate();
+        Log.e("Error","onTaskRemoved - 강제 종료 ");
+        Toast.makeText(this, "onTaskRemoved ", Toast.LENGTH_SHORT).show();
         instance = null;
     }
 
@@ -87,4 +96,5 @@ public class GlobalApplication extends Application {
             };
         }
     }
+
 }

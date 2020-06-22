@@ -2,6 +2,7 @@ package com.kakao.hulul;
 
 import android.app.Activity;
 import android.app.Dialog;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Point;
 import android.os.Bundle;
@@ -18,6 +19,14 @@ import androidmads.library.qrgenearator.QRGEncoder;
 
 import com.google.zxing.WriterException;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.concurrent.ExecutionException;
+
 public class WifiQrActivity extends Activity
 {
     //a WebView object to display a web page
@@ -28,9 +37,8 @@ public class WifiQrActivity extends Activity
     private Button btClose;
     private Dialog webViewDialog;
     private String ssid;
-    private String capab;
-    private String qrdom;
-    private String password;
+    private String psk;
+    private String cap;
 
     String TAG = "GenerateQRCode";
     ImageView qrImage;
@@ -45,6 +53,12 @@ public class WifiQrActivity extends Activity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        Intent intent = getIntent();
+
+        ssid = intent.getExtras().getString("SSID");
+        psk = intent.getExtras().getString("PSK");
+        cap = intent.getExtras().getString("CAPAB");
+        System.out.println("capab "+ cap);
 
         //Create a new dialog
         webViewDialog = new Dialog(WifiQrActivity.this);
@@ -69,7 +83,13 @@ public class WifiQrActivity extends Activity
             }
         });
         qrImage = (ImageView) webViewDialog.findViewById(R.id.imageView);
-        inputValue = "WIFI:S:cafe_DRINKY;T:WPA;P:drinky1213;;";
+        String capab = "FAIL";
+        if(cap.equals("OPEN"))
+            capab = "nopass";
+        else if(cap.equals("PSK"))
+            capab = "WPA";
+        inputValue = "WIFI:S:" + ssid.substring(1, ssid.length()-1) + ";T:" + capab + ";P:" + psk + ";;";
+        System.out.println(inputValue);
         if (inputValue.length() > 0) {
             WindowManager manager = (WindowManager) getSystemService(WINDOW_SERVICE);
             Display display = manager.getDefaultDisplay();

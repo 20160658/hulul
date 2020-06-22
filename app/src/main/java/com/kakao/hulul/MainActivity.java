@@ -19,7 +19,6 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -35,8 +34,6 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import android.net.wifi.WifiConfiguration.KeyMgmt;
-
-import com.kakao.auth.Session;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -58,30 +55,30 @@ public class MainActivity extends AppCompatActivity {
 
     public static final int SECURITY_NONE = 0, SECURITY_WEP = 1, SECURITY_PSK = 2, SECURITY_EAP = 3;
 
-    IntentFilter f1;
-    IntentFilter f2;
+    private IntentFilter f1;
+    private IntentFilter f2;
 
     private BroadcastReceiver receiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             final String action = intent.getAction();
-            if(action.equals(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)) {
+            if (action.equals(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)) {
                 scanDatas = wifiManager.getScanResults();
 
                 wifiList = new ArrayList<>();
-                for(ScanResult select : scanDatas){
+                for (ScanResult select : scanDatas) {
                     String BBSID = select.BSSID + " 강도 " + WifiManager.calculateSignalLevel(select.level, 5) + " 보안 " + getScanResultSecurity(select);
                     String SSID = select.SSID;
                     String CAP = select.capabilities;
-                    if(select.SSID.equals(""))
+                    if (select.SSID.equals(""))
                         continue;
                     WifiData wifiData = new WifiData(select, BBSID, SSID, CAP, false);
                     wifiList.add(wifiData);
                 }
-                if(scanDatas.size() == 0)
+                if (scanDatas.size() == 0)
                     Toast.makeText(context, "주변 와이파이를 감지할 수 없습니다.", Toast.LENGTH_SHORT).show();
 
-                listView = (ListView)findViewById(R.id.listView);
+                listView = (ListView) findViewById(R.id.listView);
                 ArrayAdapter adapter = new WifiAdapter(getApplicationContext(), R.layout.item_layout, wifiList);
                 listView.setAdapter(adapter);
                 final ListView listView = (ListView) findViewById(R.id.listView);
@@ -90,15 +87,14 @@ public class MainActivity extends AppCompatActivity {
                     public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
                         String result = getScanResultSecurity(wifiList.get(i).getResult());
                         String splitBssid = wifiList.get(i).getBSSID().substring(0, 17);
-                        if(result.equalsIgnoreCase("PSK") || result.equalsIgnoreCase("EAP") || result.equalsIgnoreCase("WEP")) {
+                        if (result.equalsIgnoreCase("PSK") || result.equalsIgnoreCase("EAP") || result.equalsIgnoreCase("WEP")) {
                             mDialog = new WifiDialog(MainActivity.this, result, wifiList.get(i).getSSID(), splitBssid);
                             mDialog.show();
-                            //unRegisterWifiReceivers();
-                        } else if(result.equalsIgnoreCase("OPEN")) {
+                        } else if (result.equalsIgnoreCase("OPEN")) {
                             OPEN(wifiManager, wifiList.get(i).getSSID());
-                            boolean isRegistered = isAlreadyRegisteredWifi(splitBssid);
-                            if(!isRegistered)
-                                new DatabaseTask().execute(Integer.toString(DatabaseTask.SET), splitBssid, "");
+                            boolean isRegistered = isRegisteredWifi(splitBssid, true);
+                            if (!isRegistered)
+                                new DatabaseTask().execute(Integer.toString(DatabaseTask.SET), splitBssid, "", "OPEN");
                             Toast.makeText(MainActivity.this, "연결되었습니다.", Toast.LENGTH_LONG).show();
                         }
                     }
@@ -106,7 +102,7 @@ public class MainActivity extends AppCompatActivity {
                 adapter.notifyDataSetChanged();
                 bar.setVisibility(View.INVISIBLE);
 
-            } else if(action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
+            } else if (action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
                 getConnectedWifi();
                 sendBroadcast(new Intent("wifi.ON_NETWORK_STATE_CHANGED"));
             }
@@ -117,7 +113,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
 
         context = MainActivity.this;
         checkPermission(context);
@@ -135,14 +130,22 @@ public class MainActivity extends AppCompatActivity {
         btn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                WifiConfiguration conf = new WifiConfiguration();
-                Intent intent = new Intent(MainActivity.this, WifiQrActivity.class);
-                intent.putExtra("SSID", conf.SSID);
-                intent.putExtra("CAPAB", getSecurityType(conf));
-                //intent.putExtra("PSK", "");
-                startActivityForResult(intent, 202);
+                WifiManager manager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+                WifiInfo currentWifi = manager.getConnectionInfo();
+                Intent qrIntent = new Intent(MainActivity.this, WifiQrActivity.class);
+                qrIntent.putExtra("SSID", currentWifi.getSSID());
+                qrIntent.putExtra("PSK", getCurrentWifiPsk(currentWifi.getBSSID()));
+                qrIntent.putExtra("CAPAB", getCurrentWifiCap(currentWifi.getBSSID()));
+                System.out.println("현재 BSSID " + currentWifi.getBSSID() + " PSK " + getCurrentWifiPsk(currentWifi.getBSSID()) + " CAP " + getCurrentWifiCap(currentWifi.getBSSID()));
+                startActivityForResult(qrIntent, 202);
             }
         });
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        unregisterReceiver(mReceiver);
     }
 
     @Override
@@ -151,10 +154,24 @@ public class MainActivity extends AppCompatActivity {
         IntentFilter intentFilter = new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
         intentFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         registerReceiver(receiver, intentFilter);
+        if (!mReceiver.isOrderedBroadcast())
+            registerWifiReceivers();
         bar.setVisibility(View.VISIBLE);
         wifiManager.startScan();
         listView.setFocusable(true);
         getConnectedWifi();
+
+        WifiManager manager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+        WifiInfo currentWifi = manager.getConnectionInfo();
+        if(haveNetworkConnection()) {
+            if (isRegisteredWifi(currentWifi.getBSSID(), false)) {
+                btn.setEnabled(true);
+                System.out.println("연결됐습니다." + isRegisteredWifi(currentWifi.getBSSID(), false));
+            } else {
+                btn.setEnabled(false);
+                System.out.println("비연결됐습니다." + isRegisteredWifi(currentWifi.getBSSID(), false));
+            }
+        }
     }
 
     @Override
@@ -163,7 +180,7 @@ public class MainActivity extends AppCompatActivity {
         unregisterReceiver(receiver);
     }
 
-    public void showWifiList(View v){
+    public void showWifiList(View v) {
         wifiManager = (WifiManager) getApplicationContext().getSystemService(this.WIFI_SERVICE);
     }
 
@@ -188,7 +205,7 @@ public class MainActivity extends AppCompatActivity {
 
     public boolean isConnected() {
         ConnectivityManager cm =
-                (ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
+                (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
 
         NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
         boolean isConnected = activeNetwork != null &&
@@ -220,45 +237,32 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    protected void registerWifiReceivers()
-    {
+    public void registerWifiReceivers() {
         f1 = new IntentFilter(WifiManager.WIFI_STATE_CHANGED_ACTION);
         f2 = new IntentFilter(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         this.registerReceiver(mReceiver, f1);
         this.registerReceiver(mReceiver, f2);
     }
 
-    protected void unRegisterWifiReceivers()
-    {
-        unregisterReceiver(mReceiver);
-    }
-
-    final BroadcastReceiver mReceiver = new BroadcastReceiver()
-    {
+    final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         @Override
-        public void onReceive(Context context, Intent intent)
-        {
+        public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
-            System.out.println("BroadcastReceiver: " + action );
+            System.out.println("BroadcastReceiver: " + action);
 
-            if (action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION))
-            {
+            if (action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
                 getConnectedWifi();
-                System.out.println("handling event: WifiManager.NETWORK_STATE_CHANGED_ACTION action: "+action );
+                System.out.println("handling event: WifiManager.NETWORK_STATE_CHANGED_ACTION action: " + action);
                 handleWifiStateChange(intent);
-            }
-            else if (WifiManager.WIFI_STATE_CHANGED_ACTION.equals(action))
-            {
-                System.out.println("ignoring event: WifiManager.WIFI_STATE_CHANGED_ACTION action: "+action );
+            } else if (WifiManager.WIFI_STATE_CHANGED_ACTION.equals(action)) {
+                System.out.println("ignoring event: WifiManager.WIFI_STATE_CHANGED_ACTION action: " + action);
             }
         }
     };
 
-    protected void handleWifiStateChange ( Intent intent )
-    {
-        NetworkInfo info = (NetworkInfo)intent.getParcelableExtra(WifiManager.EXTRA_NETWORK_INFO);
-        if (info.getState().equals(NetworkInfo.State.CONNECTED) && !isFocused)
-        {
+    protected void handleWifiStateChange(Intent intent) {
+        NetworkInfo info = (NetworkInfo) intent.getParcelableExtra(WifiManager.EXTRA_NETWORK_INFO);
+        if (info.getState().equals(NetworkInfo.State.CONNECTED) && !isFocused) {
             wifiManager.disconnect();
             DisconnectWifi discon = new DisconnectWifi();
             registerReceiver(discon, new IntentFilter(WifiManager.SUPPLICANT_STATE_CHANGED_ACTION));
@@ -283,7 +287,7 @@ public class MainActivity extends AppCompatActivity {
 
     public String getScanResultSecurity(ScanResult scanResult) {
         final String cap = scanResult.capabilities;
-        final String[] securityModes = { "WEP", "PSK", "EAP" };
+        final String[] securityModes = {"WEP", "PSK", "EAP"};
 
         for (int i = securityModes.length - 1; i >= 0; i--) {
             if (cap.contains(securityModes[i])) {
@@ -293,10 +297,11 @@ public class MainActivity extends AppCompatActivity {
         return "OPEN";
     }
 
-    public class DisconnectWifi extends BroadcastReceiver  {
+    public class DisconnectWifi extends BroadcastReceiver {
         @Override
         public void onReceive(Context c, Intent intent) {
-            if(!intent.getParcelableExtra(wifiManager.EXTRA_NEW_STATE).toString().equals(SupplicantState.SCANNING)) wifiManager.disconnect();
+            if (!intent.getParcelableExtra(wifiManager.EXTRA_NEW_STATE).toString().equals(SupplicantState.SCANNING))
+                wifiManager.disconnect();
         }
     }
 
@@ -321,59 +326,51 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void getConnectedWifi() {
-        if(isConnected()) {
+        if (isConnected()) {
             wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
-            WifiInfo info = wifiManager.getConnectionInfo ();
-            String ssid  = info.getSSID();
+            WifiInfo info = wifiManager.getConnectionInfo();
+            String ssid = info.getSSID();
             tv.setText("연결된 와이파이\n" + ssid);
             tv.setEnabled(true);
-            btn.setEnabled(true);
         } else {
             tv.setText(" ───────────────────");
             tv.setEnabled(false);
-            btn.setEnabled(false);
         }
     }
 
-    public boolean isAlreadyRegisteredWifi(String ssid) {
+    public ArrayList<HashMap<String, String>> getWifiData() {
         try {
             ArrayList<HashMap<String, String>> resultList = new ArrayList<HashMap<String, String>>();
             String TAG_RESULTS = "result";
             String TAG_BSSID = "bssid";
             String TAG_SESSION = "session";
             String TAG_PSK = "psk";
+            String TAG_CAP = "cap";
             String a = new DatabaseTask().execute(Integer.toString(DatabaseTask.GET)).get();
-            System.out.println("aaa" + a);
             JSONObject jsonObj = new JSONObject(a);
             JSONArray results = jsonObj.getJSONArray(TAG_RESULTS);
-            String bssid = null;
+            String bsid = null;
+            String session = null;
             String psk = null;
+            String capa = null;
 
             for (int i = 0; i < results.length(); i++) {
                 JSONObject c = results.getJSONObject(i);
-                bssid = c.getString(TAG_BSSID);
-                String session = c.getString(TAG_SESSION);
+                bsid = c.getString(TAG_BSSID);
+                session = c.getString(TAG_SESSION);
                 psk = c.getString(TAG_PSK);
+                capa = c.getString(TAG_CAP);
 
                 HashMap<String, String> resultMap = new HashMap<String, String>();
 
-                resultMap.put(TAG_BSSID, bssid);
+                resultMap.put(TAG_BSSID, bsid);
                 resultMap.put(TAG_SESSION, session);
                 resultMap.put(TAG_PSK, psk);
+                resultMap.put(TAG_CAP, capa);
 
                 resultList.add(resultMap);
             }
-
-            for(HashMap<String, String> res : resultList) {
-                for(String o: res.keySet()) {
-                    System.out.println("res.get(o) : " + res.get(o));
-                    if (res.get(o).equals(ssid)) {
-                        new DatabaseTask().execute(Integer.toString(DatabaseTask.UPDATE), ssid, "");
-                        return true;
-                    }
-                }
-            }
-
+            return resultList;
         } catch (ExecutionException e) {
             e.printStackTrace();
         } catch (InterruptedException e) {
@@ -381,6 +378,60 @@ public class MainActivity extends AppCompatActivity {
         } catch (JSONException e) {
             e.printStackTrace();
         }
+        return null;
+    }
+
+    public String parseWifiData(String bsid, String dataKey) {
+        ArrayList<HashMap<String, String>> resultList = getWifiData();
+        for (HashMap<String, String> res : resultList) {
+            for (String o : res.keySet()) {
+                if(res.values().contains(bsid)) {
+                    if (o.equals(dataKey)) {
+                        return res.get(o);
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    public String getCurrentWifiPsk(String bsid) {
+        return parseWifiData(bsid, "psk");
+    }
+
+    public String getCurrentWifiCap(String bsid) {
+        return parseWifiData(bsid, "cap");
+    }
+
+    public boolean isRegisteredWifi(String bsid, boolean isAlready) {
+        ArrayList<HashMap<String, String>> resultList = getWifiData();
+        for (HashMap<String, String> res : resultList) {
+            for (String o : res.keySet()) {
+                System.out.println("res.get(o) : " + res.get(o));
+                if (res.get(o).equals(bsid)) {
+                    if(isAlready)
+                        new DatabaseTask().execute(Integer.toString(DatabaseTask.UPDATE), bsid, "");
+                    return true;
+                }
+            }
+        }
         return false;
+    }
+
+    private boolean haveNetworkConnection() {
+        boolean haveConnectedWifi = false;
+        boolean haveConnectedMobile = false;
+
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo[] netInfo = cm.getAllNetworkInfo();
+        for (NetworkInfo ni : netInfo) {
+            if (ni.getTypeName().equalsIgnoreCase("WIFI"))
+                if (ni.isConnected())
+                    haveConnectedWifi = true;
+            if (ni.getTypeName().equalsIgnoreCase("MOBILE"))
+                if (ni.isConnected())
+                    haveConnectedMobile = true;
+        }
+        return haveConnectedWifi || haveConnectedMobile;
     }
 }

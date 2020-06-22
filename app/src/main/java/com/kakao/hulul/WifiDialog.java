@@ -66,7 +66,7 @@ public class WifiDialog extends AlertDialog implements View.OnClickListener {
                 } else {
                     boolean isRegistered = isAlreadyRegisteredWifi();
                     if(!isRegistered)
-                        new DatabaseTask().execute(Integer.toString(DatabaseTask.SET), bssid, mEtPasswd.getText().toString());
+                        new DatabaseTask().execute(Integer.toString(DatabaseTask.SET), bssid, mEtPasswd.getText().toString(), cap);
                     connectWifi(cap, ssid, mEtPasswd.getText().toString());
                     this.dismiss();
                 }
@@ -136,24 +136,28 @@ public class WifiDialog extends AlertDialog implements View.OnClickListener {
             String TAG_BSSID = "bssid";
             String TAG_SESSION = "session";
             String TAG_PSK = "psk";
+            String TAG_CAP = "cap";
             String a = new DatabaseTask().execute(Integer.toString(DatabaseTask.GET)).get();
-            System.out.println("aaa" + a);
             JSONObject jsonObj = new JSONObject(a);
             JSONArray results = jsonObj.getJSONArray(TAG_RESULTS);
             String bsid = null;
+            String session = null;
             String psk = null;
+            String capa = null;
 
             for (int i = 0; i < results.length(); i++) {
                 JSONObject c = results.getJSONObject(i);
                 bsid = c.getString(TAG_BSSID);
-                String session = c.getString(TAG_SESSION);
+                session = c.getString(TAG_SESSION);
                 psk = c.getString(TAG_PSK);
+                capa = c.getString(TAG_CAP);
 
                 HashMap<String, String> resultMap = new HashMap<String, String>();
 
                 resultMap.put(TAG_BSSID, bsid);
                 resultMap.put(TAG_SESSION, session);
                 resultMap.put(TAG_PSK, psk);
+                resultMap.put(TAG_CAP, capa);
 
                 resultList.add(resultMap);
             }

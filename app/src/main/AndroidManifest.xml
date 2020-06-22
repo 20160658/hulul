@@ -21,6 +21,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
+        android:stopWithTask="false"
         android:noHistory="true">
         <activity android:name=".MainActivity"></activity>
         <activity android:name=".WifiQrActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen"></activity>

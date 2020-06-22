@@ -26,7 +26,7 @@ public class DatabaseTask extends AsyncTask<String, Void, String> {
             insertData(params[1], params[2]);
         //POST
         else if(Integer.parseInt(params[0]) == SET)
-            result = insertData(params[1], Session.getCurrentSession().toString(), params[2]);
+            result = insertData(params[1], Session.getCurrentSession().toString(), params[2], params[3]);
         //GET
         else if(Integer.parseInt(params[0]) == GET) {
             String uri = "http://hulu.dothome.co.kr/get.php";
@@ -60,8 +60,8 @@ public class DatabaseTask extends AsyncTask<String, Void, String> {
         String postData = null;
         if(params.length == 3)
             postData = "bssid=" + params[1] + "&" + "psk=" + params[2];
-        else if(params.length == 4)
-            postData = "bssid=" + params[1] + "&" + "session=" + params[2] + "&" + "psk=" + params[3];
+        else if(params.length == 5)
+            postData = "bssid=" + params[1] + "&" + "session=" + params[2] + "&" + "psk=" + params[3] + "&" + "cap=" + params[4];
         try {
             URL url = new URL(params[0]);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -87,8 +87,8 @@ public class DatabaseTask extends AsyncTask<String, Void, String> {
         String result = null;
         if(params.length == 2)
             connectData("http://hulu.dothome.co.kr/update.php", params[0], params[1]);
-        else if(params.length == 3)
-            result = connectData("http://hulu.dothome.co.kr/set.php", params[0], params[1], params[2]);
+        else if(params.length == 4)
+            result = connectData("http://hulu.dothome.co.kr/set.php", params[0], params[1], params[2], params[3]);
         if (result != null) {
             if (result.equals("1")) {
                 //Toast.makeText(MainActivity.this, "들어감", Toast.LENGTH_SHORT).show();
